@@ -15,7 +15,7 @@ delete_csv()
 
 df = pd.DataFrame(listAllData, columns=['Match ID', 'Team', 'Champion', 'Type', 'Order'])
 
-for matchId in tqdm(range(53600, 53790)):
+for matchId in tqdm(range(50000, 53790)):
 
     url = f'https://gol.gg/game/stats/{matchId}/page-game/'
     
@@ -53,6 +53,6 @@ csvFile = 'bdd/draft_data.csv'
 
 df = pd.DataFrame(listAllData, columns=['Match ID', 'Team', 'Champion', 'Type', 'Order'])
 
-df.to_csv(csvFile, mode='a', header=False, index=False)
+df.to_csv(csvFile, mode='a', header=True, index=False)
 
 print(f"Les données de draft ont été ajoutées au fichier {csvFile}.")

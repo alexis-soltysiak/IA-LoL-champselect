@@ -7,97 +7,127 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from sklearn.model_selection import train_test_split
 import numpy as np
+import spacy
+from tqdm import tqdm
 
-champion_names = [
-    "Aatrox", "Ahri", "Akali", "Akshan", "Alistar", "Amumu", "Anivia", "Annie", "Aphelios", "Ashe",
-    "Aurelion Sol", "Azir", "Bard", "Belveth", "Blitzcrank", "Brand", "Braum", "Briar", "Caitlyn",
-    "Camille", "Cassiopeia", "Chogath", "Corki", "Darius", "Diana", "Draven", "Dr.Mundo", "Ekko",
-    "Elise", "Evelynn", "Ezreal", "Fiddlesticks", "Fiora", "Fizz", "Galio", "Gangplank", "Garen",
-    "Gnar", "Gragas", "Graves", "Gwen", "Hecarim", "Heimerdinger", "Hwei", "Illaoi", "Irelia", "Ivern",
-    "Janna", "Jarvan IV", "Jax", "Jayce", "Jhin", "Jinx", "Kaisa", "Kalista", "Karma", "Karthus",
-    "Kassadin", "Katarina", "Kayle", "Kayn", "Kennen", "Khazix", "Kindred", "Kled", "Kogmaw", "KSante",
-    "LeBlanc", "Lee Sin", "Leona", "Lillia", "Lissandra", "Lucian", "Lulu", "Lux", "Malphite", "Malzahar",
-    "Maokai", "Master Yi", "Milio", "Miss Fortune", "Mordekaiser", "Morgana", "Naafiri", "Nami", "Nasus",
-    "Nautilus", "Neeko", "Nidalee", "Nilah", "Nocturne", "Nunu", "Olaf", "Orianna", "Ornn",
-    "Pantheon", "Poppy", "Pyke", "Qiyana", "Quinn", "Rakan", "Rammus", "RekSai", "Rell", "Renata Glasc",
-    "Renekton", "Rengar", "Riven", "Rumble", "Ryze", "Samira", "Sejuani", "Senna", "Seraphine", "Sett",
-    "Shaco", "Shen", "Shyvana", "Singed", "Sion", "Sivir", "Skarner", "Sona", "Soraka", "Swain", "Sylas",
-    "Syndra", "Tahm Kench", "Taliyah", "Talon", "Taric", "Teemo", "Thresh", "Tristana", "Trundle",
-    "Tryndamere", "Twisted Fate", "Twitch", "Udyr", "Urgot", "Varus", "Vayne", "Veigar", "VelKoz", "Vex",
-    "Vi", "Viego", "Viktor", "Vladimir", "Volibear", "Warwick", "Wukong", "Xayah", "Xerath", "Xin Zhao",
-    "Yasuo", "Yone", "Yorick", "Yuumi", "Zac", "Zed", "Zeri", "Ziggs", "Zilean", "Zoe", "Zyra"
-]
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import accuracy_score
+from keras.initializers import glorot_uniform
+from keras.models import save_model
+from keras.models import load_model
+from keras.layers import LSTM, Dense, Dropout, Flatten, BatchNormalization, LeakyReLU
 
 
-    
-df = pd.read_csv('bdd/draft_data.csv')
-
-# Créer le tokenizer et ajuster sur les noms des champions
-tokenizer = Tokenizer()
-tokenizer.fit_on_texts(champion_names)
-
-# Convertir les noms des champions en séquences numériques
-champion_sequences = tokenizer.texts_to_sequences(df['Champion'])
-
-# Créer les vecteurs one-hot
-num_champions = len(tokenizer.word_index) + 1
-one_hot_sequences = np.zeros((len(champion_sequences), num_champions))
+from functions import *
 
 
-print(one_hot_sequences)
-for i, seq in enumerate(champion_sequences):
-    if len(seq) > 0:  # Vérifiez que la séquence n'est pas vide
-        one_hot_sequences[i, seq[0]] = 1
-    else:
-        print(f"Aucune correspondance trouvée pour : {df['Champion'].iloc[i]}")
+df = pd.read_csv('bdd/draft_data_all.csv')
 
 
 
-# Préparer les séquences d'entrée (X) et de sortie (y)
-sequence_length = 20
+num_champions = len(champion_names)
+champion_to_index = {champion: index for index, champion in enumerate(champion_names)}
+index_to_champion = {v: k for k, v in champion_to_index.items()}
+
 X = []
-y = []
-
-for i in range(len(one_hot_sequences) - sequence_length):
-    X.append(one_hot_sequences[i:i+sequence_length])
-    y.append(one_hot_sequences[i+sequence_length])
-
-X = np.array(X)
-y = np.array(y)
-
-# Diviser les données
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Construction du modèle LSTM
-model = Sequential([
-    LSTM(50, return_sequences=True, input_shape=(sequence_length, num_champions)),
-    LSTM(50),
-    Dense(num_champions, activation='softmax')
-])
-
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-
-model.fit(X_train, y_train, epochs=20, batch_size=1, validation_data=(X_test, y_test))
+Y = []
 
 
-##TEST
-champions = ['Renata Glasc', 'Draven', 'Ashe', 'Kalista']
+df = df.sort_values(by=['Match ID', 'Order'])
+grouped = df.groupby('Match ID')
 
-sequences = tokenizer.texts_to_sequences(champions)
-one_hot_sequences = pad_sequences(sequences, maxlen=20)
+if 0 == 0 : 
+    model = load_model("bdd/mon_modele.h5")
+else :
+    for match_id, match_data in tqdm(grouped):
+        #print(f"Traitement du Match ID: {match_id}")
+        
+        for i in range(len(match_data)):
+            row = match_data.iloc[i]
+            champion = row['Champion']
+            type = row['Type']
+
+            input_sequence = [champion_to_one_hot("<PAD>", "None") for _ in range(20)]
+            
+            for j in range(i):
+                previous_row = match_data.iloc[j]
+                previous_champion = previous_row['Champion']
+                previous_type = previous_row['Type']
+                input_sequence[j] = champion_to_one_hot(previous_champion, previous_type)
+
+                
+            X.append(input_sequence)
+            Y.append(output_champion_to_one_hot(champion))
+            
+
+    # Conversion des listes en arrays NumPy
+    X_np = np.array(X)
+    Y_np = np.array(Y)
+
+    """
+    translated_X_train = translate_to_champions(X_np, is_sequence=True)
+    print(translated_X_train)
+
+    translated_Y_train = translate_to_champions(Y_np, is_sequence=False)
+    print(translated_Y_train)
+    """
+
+    X_train, X_test, y_train, y_test = train_test_split(X_np, Y_np, test_size=0.2, random_state=42)
 
 
-input_sequence = np.zeros((1, 20, len(tokenizer.word_index) + 1))
-for i, sequence in enumerate(one_hot_sequences):
-    for j, value in enumerate(sequence):
-        if value != 0:
-            input_sequence[0, i, value] = 1
+    input_shape = X_train.shape[1:]
+    output_shape = y_train.shape[1]  # Notez l'utilisation de y_train, pas Y_train
 
 
-predicted = model.predict(input_sequence)
-predicted_champion_index = np.argmax(predicted, axis=-1)[0]
-predicted_champion = tokenizer.index_word[predicted_champion_index]
+    weight_initializer = glorot_uniform(seed=42)
 
-print("Le cinquième champion prédit est :", predicted_champion)
+    model = Sequential()
+
+    """
+    #MODEL 1
+    model.add(LSTM(units=64, return_sequences=True, input_shape=input_shape))
+    model.add(LSTM(units=32))
+    model.add(Dense(output_shape, activation='softmax'))
+    """
+    #MODEL 2 
+    # Couche LSTM avec retour de séquence
+    # Couche LSTM avec retour de séquence
+    model.add(LSTM(units=64, return_sequences=True, input_shape=input_shape))
+    model.add(Dropout(0.2))  # Ajouter une couche de dropout pour la régularisation
+
+    # Une couche Flatten pour aplatir la sortie de la couche LSTM
+    model.add(Flatten())
+
+    # Couche Dense (complètement connectée) avec activation Leaky ReLU
+    model.add(Dense(128))
+    model.add(BatchNormalization())  # Ajouter la couche de batch normalization
+    model.add(LeakyReLU(alpha=0.1))  # Ajouter l'activation Leaky ReLU
+    model.add(Dropout(0.2))
+    
+  
+    # Couche de sortie avec activation softmax
+    model.add(Dense(output_shape, activation='softmax'))
 
 
+    custom_lr = 0.01  # Modifiez ce taux d'apprentissage selon vos besoins
+    optimizer = Adam(learning_rate=custom_lr)
+
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+    model.summary()
+
+    model.fit(X_train, y_train, epochs=20, batch_size=16, validation_data=(X_test, y_test))
+    model.save("bdd/mon_modele.h5")
+
+
+###########################
+#PREDICT
+
+
+
+champion_list = [] # Remplacez par votre liste de champions
+top_5_champions = predict_top_5_champions(champion_list, model)
+print("Top 5 champions prédits :", top_5_champions)

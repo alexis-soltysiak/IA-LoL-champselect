@@ -3,6 +3,7 @@ from selenium.webdriver.common.by import By
 import pandas as pd
 import time
 import os
+import numpy as np
 
 def extract_draft_data(driver, match_id, team1_name, team2_name):
     data = []
@@ -130,3 +131,130 @@ def delete_csv():
         print(f"{file_path} has been deleted.")
     else:
         print(f"{file_path} does not exist.")
+        
+        
+        
+        
+#########################################
+
+
+
+champion_names = [
+    "<PAD>","Aatrox", "Ahri", "Akali", "Akshan", "Alistar", "Amumu", "Anivia", "Annie", "Aphelios", "Ashe",
+    "Aurelion Sol", "Azir", "Bard", "Belveth", "Blitzcrank", "Brand", "Braum", "Briar", "Caitlyn",
+    "Camille", "Cassiopeia", "Chogath", "Corki", "Darius", "Diana", "Draven", "Dr. Mundo", "Ekko",
+    "Elise", "Evelynn", "Ezreal", "Fiddlesticks", "Fiora", "Fizz", "Galio", "Gangplank", "Garen",
+    "Gnar", "Gragas", "Graves", "Gwen", "Hecarim", "Heimerdinger", "Hwei", "Illaoi", "Irelia", "Ivern",
+    "Janna", "Jarvan IV", "Jax", "Jayce", "Jhin", "Jinx", "Kaisa", "Kalista", "Karma", "Karthus",
+    "Kassadin", "Katarina", "Kayle", "Kayn", "Kennen", "KhaZix", "Kindred", "Kled", "KogMaw", "KSante",
+    "LeBlanc", "Lee Sin", "Leona", "Lillia", "Lissandra", "Lucian", "Lulu", "Lux", "Malphite", "Malzahar",
+    "Maokai", "Master Yi", "Milio", "Miss Fortune", "Mordekaiser", "Morgana", "Naafiri", "Nami", "Nasus",
+    "Nautilus", "Neeko", "Nidalee", "Nilah", "Nocturne", "Nunu", "Olaf", "Orianna", "Ornn",
+    "Pantheon", "Poppy", "Pyke", "Qiyana", "Quinn", "Rakan", "Rammus", "RekSai", "Rell", "Renata Glasc",
+    "Renekton", "Rengar", "Riven", "Rumble", "Ryze", "Samira", "Sejuani", "Senna", "Seraphine", "Sett",
+    "Shaco", "Shen", "Shyvana", "Singed", "Sion", "Sivir", "Skarner", "Sona", "Soraka", "Swain", "Sylas",
+    "Syndra", "Tahm Kench", "Taliyah", "Talon", "Taric", "Teemo", "Thresh", "Tristana", "Trundle",
+    "Tryndamere", "Twisted Fate", "Twitch", "Udyr", "Urgot", "Varus", "Vayne", "Veigar", "VelKoz", "Vex",
+    "Vi", "Viego", "Viktor", "Vladimir", "Volibear", "Warwick", "Wukong", "Xayah", "Xerath", "Xin Zhao",
+    "Yasuo", "Yone", "Yorick", "Yuumi", "Zac", "Zed", "Zeri", "Ziggs", "Zilean", "Zoe", "Zyra"
+]
+
+
+df = pd.read_csv('bdd/draft_data_all.csv')
+
+
+
+num_champions = len(champion_names)
+champion_to_index = {champion: index for index, champion in enumerate(champion_names)}
+index_to_champion = {v: k for k, v in champion_to_index.items()}
+
+def champion_to_one_hot(champion, is_pick):
+    one_hot = np.zeros(num_champions + 3)  # +3 pour les dimensions pick et ban
+    one_hot[champion_to_index[champion]] = 1
+    if is_pick == "Pick":
+        one_hot[-3] = 1
+    elif is_pick == "Ban" : 
+        one_hot[-2] = 1 
+    else  : 
+        one_hot[-1] = 1 
+    return one_hot
+
+def output_champion_to_one_hot(champion):
+    one_hot = np.zeros(num_champions )  # +3 pour les dimensions pick et ban
+    one_hot[champion_to_index[champion]] = 1
+    return one_hot
+
+
+def translate_to_champions(data, is_sequence=True):
+    all_translations = []
+    
+    for item in data:
+        if is_sequence:  # Si les données sont des séquences (comme X_train)
+            champions_sequence = []
+            for vector in item:
+                if np.sum(vector[:-2]) == 0:  # Vérifie si le vecteur est un padding
+                    champions_sequence.append('Padding')
+                else:
+                    champion_index = np.argmax(vector[:-2])
+                    champion_name = index_to_champion[champion_index]
+                    champions_sequence.append(champion_name)
+            all_translations.append(champions_sequence)
+        else:  # Si les données sont des vecteurs uniques (comme Y_train)
+            if np.sum(item[:-2]) == 0:
+                all_translations.append('Padding')
+            else:
+                champion_index = np.argmax(item[:-2])
+                champion_name = index_to_champion[champion_index]
+                all_translations.append(champion_name)
+    
+    return all_translations
+
+
+
+
+
+def predict_next_champion(champion_list, model):
+    
+    input_sequence = [champion_to_one_hot("<PAD>", "None") for _ in range(20)]
+
+    for j in range(len(champion_list)):
+
+        previous_champion = champion_list['Champion']
+        previous_type = "Ban"
+        input_sequence[j] = champion_to_one_hot(previous_champion, previous_type)
+
+    # Convertir en format requis par le modèle (1, 20, 170)
+    sequence_input = np.array([input_sequence])
+
+
+    predicted_vector = model.predict(sequence_input)[0]  # Prendre la première prédiction
+
+    # Convertir le vecteur prédit en nom de champion
+    predicted_champion_index = np.argmax(predicted_vector[:-2]) 
+    predicted_champion = index_to_champion[predicted_champion_index]
+    return predicted_champion
+
+def predict_top_5_champions(champion_list, model):
+    
+    input_sequence = [champion_to_one_hot("<PAD>", "None") for _ in range(20)]
+
+    for j in range(len(champion_list)):
+
+        previous_champion = champion_list[j]
+        previous_type = "ban"
+        input_sequence[j] = champion_to_one_hot(previous_champion, previous_type)
+
+    
+    # Convertir en format requis par le modèle (1, 20, 170)
+    sequence_input = np.array([input_sequence])
+
+    # Faire la prédiction
+    predicted_vector = model.predict(sequence_input)[0]
+
+    # Trier les probabilités et prendre les 5 indices supérieurs
+    top_5_indices = np.argsort(predicted_vector[:-2])[-5:]
+
+    # Convertir les indices en noms de champions
+    top_5_champions = [index_to_champion[index] for index in reversed(top_5_indices)]
+
+    return top_5_champions
