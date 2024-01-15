@@ -159,6 +159,26 @@ champion_names = [
     "Yasuo", "Yone", "Yorick", "Yuumi", "Zac", "Zed", "Zeri", "Ziggs", "Zilean", "Zoe", "Zyra"
 ]
 
+champion_names_without_pad = [
+    "<PAD>","Aatrox", "Ahri", "Akali", "Akshan", "Alistar", "Amumu", "Anivia", "Annie", "Aphelios", "Ashe",
+    "Aurelion Sol", "Azir", "Bard", "Belveth", "Blitzcrank", "Brand", "Braum", "Briar", "Caitlyn",
+    "Camille", "Cassiopeia", "Chogath", "Corki", "Darius", "Diana", "Draven", "Dr. Mundo", "Ekko",
+    "Elise", "Evelynn", "Ezreal", "Fiddlesticks", "Fiora", "Fizz", "Galio", "Gangplank", "Garen",
+    "Gnar", "Gragas", "Graves", "Gwen", "Hecarim", "Heimerdinger", "Hwei", "Illaoi", "Irelia", "Ivern",
+    "Janna", "Jarvan IV", "Jax", "Jayce", "Jhin", "Jinx", "Kaisa", "Kalista", "Karma", "Karthus",
+    "Kassadin", "Katarina", "Kayle", "Kayn", "Kennen", "KhaZix", "Kindred", "Kled", "KogMaw", "KSante",
+    "LeBlanc", "Lee Sin", "Leona", "Lillia", "Lissandra", "Lucian", "Lulu", "Lux", "Malphite", "Malzahar",
+    "Maokai", "Master Yi", "Milio", "Miss Fortune", "Mordekaiser", "Morgana", "Naafiri", "Nami", "Nasus",
+    "Nautilus", "Neeko", "Nidalee", "Nilah", "Nocturne", "Nunu", "Olaf", "Orianna", "Ornn",
+    "Pantheon", "Poppy", "Pyke", "Qiyana", "Quinn", "Rakan", "Rammus", "RekSai", "Rell", "Renata Glasc",
+    "Renekton", "Rengar", "Riven", "Rumble", "Ryze", "Samira", "Sejuani", "Senna", "Seraphine", "Sett",
+    "Shaco", "Shen", "Shyvana", "Singed", "Sion", "Sivir", "Skarner", "Sona", "Soraka", "Swain", "Sylas",
+    "Syndra", "Tahm Kench", "Taliyah", "Talon", "Taric", "Teemo", "Thresh", "Tristana", "Trundle",
+    "Tryndamere", "Twisted Fate", "Twitch", "Udyr", "Urgot", "Varus", "Vayne", "Veigar", "VelKoz", "Vex",
+    "Vi", "Viego", "Viktor", "Vladimir", "Volibear", "Warwick", "Wukong", "Xayah", "Xerath", "Xin Zhao",
+    "Yasuo", "Yone", "Yorick", "Yuumi", "Zac", "Zed", "Zeri", "Ziggs", "Zilean", "Zoe", "Zyra"
+]
+
 
 df = pd.read_csv('bdd/draft_data_all.csv')
 
@@ -257,4 +277,42 @@ def predict_top_5_champions(champion_list, model):
     # Convertir les indices en noms de champions
     top_5_champions = [index_to_champion[index] for index in reversed(top_5_indices)]
 
+    return top_5_champions
+
+
+
+def list_champions_to_vector(liste_champions):
+    num_champions = len(champion_to_index)
+    one_hot = np.zeros(num_champions)
+
+    # Parcourez la liste des champions et mettez 1 à l'index correspondant dans le vecteur
+    for i,champion in enumerate(liste_champions):
+        index = champion_to_index.get(champion, None)  # Obtenez l'index à partir du dictionnaire
+        if index is not None:
+            if i == 0 or i == 3 or i == 4 or i ==7 or i == 9 : 
+                one_hot[index] = 1
+            else :  
+                one_hot[index] = 2
+
+    return one_hot
+
+
+def predict_top_5_champions(model, liste_champions):
+    # Transformez la liste de champions en vecteur one-hot
+    input_vector = list_champions_to_vector(liste_champions)
+    
+    # Effectuez une prédiction avec le modèle
+    predictions = model.predict(np.array([input_vector]))  # Le modèle s'attend à une entrée de forme (1, num_champions)
+    
+    # Obtenez les indices des 5 champions prédits (les indices avec les plus hautes probabilités)
+    top_5_indices = np.argsort(predictions[0])[-5:][::-1]
+    
+    # Trouvez les champions correspondants aux indices prédits dans le dictionnaire champion_to_index
+    top_5_champions = []
+    for index in top_5_indices:
+        for champion, champ_index in champion_to_index.items():
+            if champ_index == index:
+                top_5_champions.append(champion)
+                break
+    
     return top_5_champions

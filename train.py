@@ -39,7 +39,7 @@ Y = []
 df = df.sort_values(by=['Match ID', 'Order'])
 grouped = df.groupby('Match ID')
 
-if 0 == 0 : 
+if 0 == 0: 
     model = load_model("bdd/mon_modele.h5")
 else :
     for match_id, match_data in tqdm(grouped):
@@ -128,6 +128,6 @@ else :
 
 
 
-champion_list = [] # Remplacez par votre liste de champions
+champion_list = ["Renekton","Gragas","Vi","Aphelios"] # Aphelios
 top_5_champions = predict_top_5_champions(champion_list, model)
 print("Top 5 champions prédits :", top_5_champions)
